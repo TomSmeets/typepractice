@@ -1,0 +1,19 @@
+name:                typepractice
+version:             0.1.0.0
+synopsis:            Simple typing app
+description:         Please see README.md
+homepage:            http://github.com/TomSmeets/typepractice
+license:             MIT
+license-file:        LICENSE
+author:              Tom Smeets
+maintainer:          Tom.TSmeets@Gmail.com
+copyright:           2016 Tom Smeets
+category:            Game
+build-type:          Simple
+cabal-version:       >=1.10
+
+executable typepractice
+  hs-source-dirs:      src
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5, ansi-terminal, time
