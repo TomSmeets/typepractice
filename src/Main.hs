@@ -1,76 +1,83 @@
+{-# LANGUAGE RecordWildCards #-}
 module Main where
 
-import System.Console.ANSI
-import System.IO
-import System.Environment
-import Control.Monad
+import Data.Maybe
 import Data.Time.Clock
-import Data.Ratio
+import System.Console.ANSI
+import System.Environment
+import System.IO
+import TypePractice
+import Zipper
 
 main :: IO ()
 main = do
     stdin2 <- openFile "/dev/tty" ReadMode -- open a second stdin
+    hSetBuffering stdout NoBuffering
     hSetBuffering stdin NoBuffering
     hSetBuffering stdin2 NoBuffering
     args <- getArgs
     case args of
-        []  -> getContents >>= \str -> length str `seq` play stdin2 str
-        [f] -> playFromFile f
+        []  -> getContents >>= \str -> length str `seq` start stdin2 str
+        [f] -> readFile f >>= start stdin2
         _   -> error "invalid amount of arguments"
 
-segments n [] = []
-segments n xs = take n xs : segments n (drop n xs)
-
-playFromFile f = readFile f >>= play stdin
-
-play h str = do
-    clearScreen
-    startT <- getCurrentTime
-    mapM_ (play' h startT . unlines) . segments 8 . lines $ str
-    endT   <- getCurrentTime
-    let diff    = diffUTCTime endT startT
-    let (m, s)  = (round diff) `divMod` 60
-    let words'  = length (words str)
-    putStrLn $ "words: " ++ show words'
-    putStrLn $ "time: "  ++ show m ++ "m " ++ show s ++ "s"
-    putStrLn $ "WPM: "   ++ show (round $ fromIntegral words' / (diff / 60))
-
-wpm :: Integral a => UTCTime -> UTCTime -> a -> a
-wpm start end words = round $ fromIntegral words / diffMin
-  where
-    diffMin = diffUTCTime end start / 60
-
-play' h startT str = go "" >> putStrLn "DONE"
-  where
-    go xs | xs == str = return ()
-          | otherwise = do
-        now <- getCurrentTime
-        display str xs
-        nextInput h xs >>= go
-
-
-nextInput h xs = do
-    c <- hGetChar h
-    case c of
-        '\DEL' -> return $ init xs
-        _      -> return $ xs ++ [c]
-
-display str input = do
-    let out = concat $ zipWith withColor (toColor str input) (map makeVisible str)
+-- | Start the type game
+start :: Handle -- ^ text input handle
+      -> String -- ^ text to practice
+      -> IO ()
+start inH txt' = do
+    let txt = init . init . unlines . map (++ " ") . lines $ reformat 71 txt'
+    hSetEcho inH False
+    showCursor
     setCursorPosition 0 0
-    clearFromCursorToScreenEnd
-    putStrLn out
+    clearScreen
+    putStrLn txt
+    setCursorPosition 0 0
+    TypeSession{..} <- loop (TypeSession Nothing (fromList2 (lines txt)) 0)
+    endTime <- getCurrentTime
+    let speed = wpm (length $ words txt) (diffUTCTime endTime (fromJust startTime))
+    putStrLn ""
+    putStrLn $ "WPM: " ++ show speed
+    putStrLn $ "Errors: " ++ show errors
   where
-    withColor col w = setSGRCode [col] ++ w ++ setSGRCode [Reset]
-    toColor (x:xs) (y:ys) | x == y    = highlighted : toColor xs ys
-                          | otherwise = wrong       : toColor xs ys
-    toColor [] (y:ys) = normal : toColor [] ys
-    toColor (x:xs) [] = normal : toColor xs []
-    toColor [] []     = []
+    loop s = do
+        c <- hGetChar inH
+        (s', d) <- typeChar c s
+        if d then return s' else loop s'
 
-makeVisible '\n' = "\\n\n"
-makeVisible c    = [c]
+typeChar :: Char -> TypeSession -> IO (TypeSession, Bool)
+typeChar '\DEL' s = do
+    let t' = left2 $ text s
+    let (y, x) = idx2 t'
+    setCursorPosition y x
+    putChar (cursor2 t')
+    setCursorPosition y x
+    return (s{text = t'}, False)
+typeChar c TypeSession{..} = do
+    st <- case startTime of
+        Nothing -> Just <$> getCurrentTime
+        Just t  -> return $ Just t
 
-normal      = SetColor Background Vivid Magenta
+    let madeError = cursor2 text /= c
+    let errors' = errors + if madeError then 1 else 0
+
+    let color = if madeError then wrong else normal
+    putStr $ withColor color [cursor2 text]
+
+    if isLast2 text
+      then return (TypeSession st text errors', True)
+      else (do
+        let text' = right2 text
+        let (y, x) = idx2 text'
+        setCursorPosition y x
+        return (TypeSession st text' errors', False))
+
+-- | Give the string a color or effect with 'SGR'
+withColor :: SGR -> String -> String
+withColor col w = setSGRCode [col] ++ w ++ setSGRCode [Reset]
+
+-- | Preset text colors
+normal, wrong, highlighted :: SGR
+normal      = Reset
 wrong       = SetColor Background Vivid Red
 highlighted = SetColor Background Vivid Blue
