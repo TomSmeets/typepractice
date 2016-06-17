@@ -35,9 +35,9 @@ start inH txt' = do
     setCursorPosition 0 0
     TypeSession{..} <- loop (TypeSession Nothing (fromList2 (lines txt)) 0)
     endTime <- getCurrentTime
-    let speed = wpm (length $ words txt) (diffUTCTime endTime (fromJust startTime))
+    let speed = wpm txt (diffUTCTime endTime (fromJust startTime))
     putStrLn ""
-    putStrLn $ "WPM: " ++ show speed
+    putStrLn $ "WPM: " ++ show (fromIntegral (round (speed * 10)) / 10)
     putStrLn $ "Errors: " ++ show errors
   where
     loop s = do

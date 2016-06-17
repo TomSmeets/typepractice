@@ -31,8 +31,10 @@ reformat m xs = f 0 (words xs)
                | otherwise = '\n':f 0 (w:wx)
     f _ [] = []
 
--- | Calculate the words per minute given the word count, start and end times
---
--- prop> \n -> wpm n 60 == n
-wpm :: Integral a => a -> NominalDiffTime -> a
-wpm n diff = round $ fromIntegral (n * 60) / diff
+-- | Calculate the characters per minute given the typed text.
+cpm :: String -> NominalDiffTime -> Float
+cpm str diff = realToFrac $ fromIntegral (length str * 60) / diff
+
+-- | Calculate the words per minute given the typed text.
+wpm :: String -> NominalDiffTime -> Float
+wpm str diff = cpm str diff / 5
