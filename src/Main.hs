@@ -37,7 +37,7 @@ start inH txt' = do
     endTime <- getCurrentTime
     let speed = wpm txt (diffUTCTime endTime (fromJust startTime))
     putStrLn ""
-    putStrLn $ "WPM: " ++ show (fromIntegral (round (speed * 10)) / 10)
+    putStrLn $ "WPM: " ++ show speed
     putStrLn $ "Errors: " ++ show errors
   where
     loop s = do
